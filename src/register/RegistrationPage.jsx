@@ -391,9 +391,23 @@ const RegistrationPage = (props) => {
           telefonoVerificado,
         } = pipelineUserDetails;
 
-        // ✅ Mapear estado usando estadoList
+        // ✅ Mapear estado usando estadoList y detectar extranjeros
+        const isExtranjero = pipelineUserDetails && (pipelineUserDetails.es_extranjero || pipelineUserDetails.esExtranjero);
         let estadoObj = '';
-        if (estado) {
+        if (isExtranjero) {
+          const fuera = estadoList.find(e => e.code === '33');
+          if (fuera) {
+            estadoObj = {
+              estadoCode: fuera.code,
+              displayValue: fuera.name
+            };
+          } else {
+            estadoObj = {
+              estadoCode: '33',
+              displayValue: 'Fuera de México'
+            };
+          }
+        } else if (estado) {
           const estadoEncontrado = estadoList.find(e => e.name === estado);
           if (estadoEncontrado) {
             estadoObj = {
@@ -415,12 +429,15 @@ const RegistrationPage = (props) => {
           nombres: nombres || '',
           primer_apellido: primer_apellido || '',
           segundo_apellido: segundo_apellido || '',
-          curp: curp || '',
+          // No mostrar CURP en el formulario si es extranjero (dejamos vacío para evitar que aparezca)
+          curp: (isExtranjero ? '' : (curp || '')),
 
           // Estado mapeado a objeto
           estado: estadoObj,
-          municipio: municipio || '',
-          telefono: telefono || '',
+          // Si es extranjero, forzamos municipio a 'FUERA DE MÉXICO'
+          municipio: (isExtranjero ? 'FUERA DE MÉXICO' : (municipio || '')),
+          // Preferir telVigente/telefono, y fallback a telefonoExtranjero o telefono_extranjero
+          telefono: telefono || pipelineUserDetails?.telefonoExtranjero || pipelineUserDetails?.telefono_extranjero || '',
 
           // Campos que Llave MX NO manda: quedan vacíos
           pais: '',
