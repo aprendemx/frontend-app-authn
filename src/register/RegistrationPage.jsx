@@ -367,11 +367,12 @@ const RegistrationPage = (props) => {
    * Set the userPipelineDetails data in formFields for only first time
    */
   useEffect(() => {
-    if (!userPipelineDataLoaded && thirdPartyAuthApiStatus === COMPLETE_STATE) {
+    const hasPipelineData = pipelineUserDetails && Object.keys(pipelineUserDetails).length !== 0;
+    if (thirdPartyAuthApiStatus === COMPLETE_STATE && (!userPipelineDataLoaded || hasPipelineData)) {
       if (thirdPartyAuthErrorMessage) {
         setErrorCode(prevState => ({ type: TPA_AUTHENTICATION_FAILURE, count: prevState.count + 1 }));
       }
-      if (pipelineUserDetails && Object.keys(pipelineUserDetails).length !== 0) {
+      if (hasPipelineData) {
         // ✅ Extraer campos de Llave MX + campos enriquecidos por Saberes MX
         const {
           username,
