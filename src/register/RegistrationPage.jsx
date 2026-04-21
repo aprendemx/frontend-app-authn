@@ -393,6 +393,10 @@ const RegistrationPage = (props) => {
           ocupacion: ocupacionRaw,
           maximo_nivel: maximoNivelRaw,
           eres_docente: eresDocenteRaw,
+          cct: cctRaw,
+          funcion: funcionRaw,
+          nivel_laboral: nivelLaboralRaw,
+          asignatura: asignaturaRaw,
         } = pipelineUserDetails;
 
         // ✅ Mapear estado usando estadoList y detectar extranjeros
@@ -448,6 +452,68 @@ const RegistrationPage = (props) => {
           if (found) maximoNivelObj = { catalogoCode: found.code, displayValue: found.name };
         }
 
+        // Mapeo funcion Saberes → objeto catálogo funcionList
+        const SABERES_FUNCION_MAP = {
+          'docente frente a grupo':    'DOCENTE FRENTE A GRUPO',
+          'docente':                   'DOCENTE FRENTE A GRUPO',
+          'administrativas':           'ADMINSTRATIVAS',
+          'administrativo':            'ADMINSTRATIVAS',
+          'directivas':                'DIRECTIVAS',
+          'director':                  'DIRECTIVAS',
+          'directivo':                 'DIRECTIVAS',
+          'técnicas':                  'TÉCNICAS',
+          'tecnicas':                  'TÉCNICAS',
+          'otras':                     'OTRAS',
+          'otro':                      'OTRAS',
+          'supervisión':               'SUPERVISIÓN',
+          'supervision':               'SUPERVISIÓN',
+          'supervisor':                'SUPERVISIÓN',
+          'asesor técnico pedagógico': 'ASESOR TÉCNICO PEDAGÓGICO',
+          'asesor tecnico pedagogico': 'ASESOR TÉCNICO PEDAGÓGICO',
+          'atp':                       'ASESOR TÉCNICO PEDAGÓGICO',
+        };
+        let funcionObj = '';
+        if (funcionRaw) {
+          const mapped = SABERES_FUNCION_MAP[funcionRaw.toLowerCase().trim()] || funcionRaw.toUpperCase();
+          const found = funcionList.find(f => f.name === mapped);
+          if (found) funcionObj = { catalogoCode: found.code, displayValue: found.name };
+        }
+
+        // Mapeo nivel_laboral Saberes → objeto catálogo nivelList (nivel_Educativo)
+        const SABERES_NIVEL_LABORAL_MAP = {
+          'preescolar':                   'EDUCACIÓN PREESCOLAR',
+          'educación preescolar':         'EDUCACIÓN PREESCOLAR',
+          'primaria':                     'EDUCACIÓN PRIMARIA',
+          'educación primaria':           'EDUCACIÓN PRIMARIA',
+          'secundaria':                   'EDUCACIÓN SECUNDARIA',
+          'educación secundaria':         'EDUCACIÓN SECUNDARIA',
+          'media superior':               'EDUCACIÓN MEDIA SUPERIOR',
+          'bachillerato':                 'EDUCACIÓN MEDIA SUPERIOR',
+          'educación media superior':     'EDUCACIÓN MEDIA SUPERIOR',
+          'superior':                     'EDUCACIÓN SUPERIOR',
+          'universidad':                  'EDUCACIÓN SUPERIOR',
+          'educación superior':           'EDUCACIÓN SUPERIOR',
+          'formación docente':            'FORMACIÓN DOCENTE (ESCUELA NORMAL)',
+          'formacion docente':            'FORMACIÓN DOCENTE (ESCUELA NORMAL)',
+          'normal':                       'FORMACIÓN DOCENTE (ESCUELA NORMAL)',
+          'escuela normal':               'FORMACIÓN DOCENTE (ESCUELA NORMAL)',
+          'especial':                     'EDUCACIÓN ESPECIAL',
+          'educación especial':           'EDUCACIÓN ESPECIAL',
+          'indígena':                     'EDUCACIÓN INDÍGENA',
+          'indigena':                     'EDUCACIÓN INDÍGENA',
+          'educación indígena':           'EDUCACIÓN INDÍGENA',
+          'adultos':                      'EDUCACIÓN PARA ADULTOS',
+          'educación para adultos':       'EDUCACIÓN PARA ADULTOS',
+          'capacitación para el trabajo': 'CAPACITACIÓN PARA TRABAJO',
+          'capacitación trabajo':         'CAPACITACIÓN PARA TRABAJO',
+        };
+        let nivelLaboralObj = '';
+        if (nivelLaboralRaw) {
+          const mapped = SABERES_NIVEL_LABORAL_MAP[nivelLaboralRaw.toLowerCase().trim()] || nivelLaboralRaw.toUpperCase();
+          const found = nivelList.find(n => n.name === mapped);
+          if (found) nivelLaboralObj = { catalogoCode: found.code, displayValue: found.name };
+        }
+
         // ✅ Solo asignar valores reales, sin inventar datos
         setFormFields(prev => ({
           ...prev,
@@ -475,10 +541,11 @@ const RegistrationPage = (props) => {
           maximo_nivel: maximoNivelObj,
           eres_docente: Boolean(eresDocenteRaw),
 
-          cct: '',
-          funcion: '',
-          nivel_Educativo: '',
-          asignatura: '',
+          // Campos docente — pre-llenados si eres_docente=true en Saberes
+          cct: cctRaw || '',
+          funcion: funcionObj,
+          nivel_Educativo: nivelLaboralObj,
+          asignatura: asignaturaRaw || '',
           cuentanos: '',
         }));
 
@@ -655,8 +722,8 @@ const RegistrationPage = (props) => {
       return handleErrorChange('honor_code', 'Debes aceptar el código de honor');
     }
 
-    // Validaciones de campos docente - SOLO si NO es Llave MX
-    if (!isLlaveMX && formFields.eres_docente) {
+    // Validaciones de campos docente — si marca eres_docente, son obligatorios
+    if (formFields.eres_docente) {
       if (!formFields.cct) {
         return handleErrorChange('cct', 'CCT es requerida');
       }
@@ -671,30 +738,19 @@ const RegistrationPage = (props) => {
     }
 
     // 🟧 BLOQUE 3: Ajuste del payload antes del envío
-    if (isLlaveMX) {
-      // Saberes MX puede haber pre-rellenado ocupacion/maximo_nivel — enviar si existen
-      _payload.ocupacion = formFields.ocupacion?.catalogoCode || '';
-      _payload.maximo_nivel = formFields.maximo_nivel?.catalogoCode || '';
+    _payload.ocupacion = formFields.ocupacion?.catalogoCode || '';
+    _payload.maximo_nivel = formFields.maximo_nivel?.catalogoCode || '';
+
+    if (formFields.eres_docente) {
+      _payload.cct = formFields.cct?.toUpperCase() || '';
+      _payload.funcion = formFields.funcion?.catalogoCode || '';
+      _payload.nivel_Educativo = formFields.nivel_Educativo?.catalogoCode || '';
+      _payload.asignatura = formFields.asignatura || '';
+    } else {
       _payload.funcion = '0';
       _payload.nivel_Educativo = '0';
-      _payload.asignatura = '';
-      _payload.cuentanos = '';
-    } else {
-      // Para registro normal: enviar los valores del formulario
-      _payload.ocupacion = formFields.ocupacion?.catalogoCode || '';
-      _payload.maximo_nivel = formFields.maximo_nivel?.catalogoCode || '';
-
-      if (formFields.eres_docente) {
-        _payload.cct = formFields.cct?.toUpperCase() || '';
-        _payload.funcion = formFields.funcion?.catalogoCode || '';
-        _payload.nivel_Educativo = formFields.nivel_Educativo?.catalogoCode || '';
-        _payload.asignatura = formFields.asignatura || '';
-      } else {
-        _payload.funcion = '0';
-        _payload.nivel_Educativo = '0';
-      }
-      _payload.cuentanos = formFields.cuentanos || '';
     }
+    _payload.cuentanos = formFields.cuentanos || '';
 
     let payload = { ...formFields };
 
