@@ -364,17 +364,21 @@ const RegistrationPage = (props) => {
   const isLlaveMX = isLlaveMXProvider(currentProvider);
 
   /**
-   * Set the userPipelineDetails data in formFields for only first time
+   * Pre-llenar formFields cuando lleguen pipelineUserDetails (Llave MX + Saberes).
+   * Re-ejecuta cada vez que pipelineUserDetails cambia — evita race donde
+   * userPipelineDataLoaded queda true antes de que los datos enriquecidos lleguen.
    */
   useEffect(() => {
+    if (thirdPartyAuthApiStatus !== COMPLETE_STATE) {
+      return;
+    }
+    if (thirdPartyAuthErrorMessage) {
+      setErrorCode(prevState => ({ type: TPA_AUTHENTICATION_FAILURE, count: prevState.count + 1 }));
+    }
     const hasPipelineData = pipelineUserDetails && Object.keys(pipelineUserDetails).length !== 0;
-    if (thirdPartyAuthApiStatus === COMPLETE_STATE && (!userPipelineDataLoaded || hasPipelineData)) {
-      if (thirdPartyAuthErrorMessage) {
-        setErrorCode(prevState => ({ type: TPA_AUTHENTICATION_FAILURE, count: prevState.count + 1 }));
-      }
-      if (hasPipelineData) {
-        // ✅ Extraer campos de Llave MX + campos enriquecidos por Saberes MX
-        const {
+    if (hasPipelineData) {
+      // ✅ Extraer campos de Llave MX + campos enriquecidos por Saberes MX
+      const {
           username,
           email,
           name,
@@ -549,14 +553,12 @@ const RegistrationPage = (props) => {
           cuentanos: '',
         }));
 
-        dispatch(setUserPipelineDataLoaded(true));
-      }
+      dispatch(setUserPipelineDataLoaded(true));
     }
   }, [ // eslint-disable-line react-hooks/exhaustive-deps
     thirdPartyAuthApiStatus,
     thirdPartyAuthErrorMessage,
     pipelineUserDetails,
-    userPipelineDataLoaded,
   ]);
 
   useEffect(() => {
