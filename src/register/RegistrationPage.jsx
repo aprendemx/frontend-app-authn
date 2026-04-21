@@ -372,12 +372,11 @@ const RegistrationPage = (props) => {
         setErrorCode(prevState => ({ type: TPA_AUTHENTICATION_FAILURE, count: prevState.count + 1 }));
       }
       if (pipelineUserDetails && Object.keys(pipelineUserDetails).length !== 0) {
-        // ✅ Extraer SOLO los campos que Llave MX entrega (sin fallbacks cruzados)
+        // ✅ Extraer campos de Llave MX + campos enriquecidos por Saberes MX
         const {
           username,
           email,
           name,
-          // Campos personalizados que Llave MX SÍ envía
           nombres,
           primer_apellido,
           segundo_apellido,
@@ -389,6 +388,10 @@ const RegistrationPage = (props) => {
           sexo,
           correoVerificado,
           telefonoVerificado,
+          // Campos que Saberes MX enriquece en el pipeline
+          ocupacion: ocupacionRaw,
+          maximo_nivel: maximoNivelRaw,
+          eres_docente: eresDocenteRaw,
         } = pipelineUserDetails;
 
         // ✅ Mapear estado usando estadoList y detectar extranjeros
@@ -417,6 +420,33 @@ const RegistrationPage = (props) => {
           }
         }
 
+        // Mapeo ocupacion Saberes → objeto catálogo del formulario
+        const SABERES_OCUPACION_MAP = {
+          'docente':                 'EDUCATIVO',
+          'personal de apoyo':       'EDUCATIVO',
+          'estudiante':              'ESTUDIANTE',
+          'personal administrativo': 'GOBIERNO',
+          'público en general':      'OTRO',
+        };
+        let ocupacionObj = '';
+        if (ocupacionRaw) {
+          const mappedName = SABERES_OCUPACION_MAP[ocupacionRaw.toLowerCase()] || ocupacionRaw.toUpperCase();
+          const found = ocupacionList.find(o => o.name === mappedName);
+          if (found) ocupacionObj = { catalogoCode: found.code, displayValue: found.name };
+        }
+
+        // Mapeo maximo_nivel Saberes → objeto catálogo del formulario
+        const SABERES_NIVEL_MAP = {
+          'bachillerato':                   'Preparatoria o Bachillerato',
+          'técnico superior universitario': 'Técnica-Profesional',
+        };
+        let maximoNivelObj = '';
+        if (maximoNivelRaw) {
+          const mappedName = SABERES_NIVEL_MAP[maximoNivelRaw.toLowerCase()] || maximoNivelRaw;
+          const found = maximoNivelList.find(n => n.name.toLowerCase() === mappedName.toLowerCase());
+          if (found) maximoNivelObj = { catalogoCode: found.code, displayValue: found.name };
+        }
+
         // ✅ Solo asignar valores reales, sin inventar datos
         setFormFields(prev => ({
           ...prev,
@@ -429,26 +459,21 @@ const RegistrationPage = (props) => {
           nombres: nombres || '',
           primer_apellido: primer_apellido || '',
           segundo_apellido: segundo_apellido || '',
-          // No mostrar CURP en el formulario si es extranjero (dejamos vacío para evitar que aparezca)
           curp: (isExtranjero ? '' : (curp || '')),
 
           // Estado mapeado a objeto
           estado: estadoObj,
-          // Si es extranjero, forzamos municipio a 'FUERA DE MÉXICO'
           municipio: (isExtranjero ? 'FUERA DE MÉXICO' : (municipio || '')),
-          // Preferir telVigente/telefono, y fallback a telefonoExtranjero o telefono_extranjero
           telefono: telefono || pipelineUserDetails?.telefonoExtranjero || pipelineUserDetails?.telefono_extranjero || '',
 
-          // Campos que Llave MX NO manda: quedan vacíos
           pais: '',
           dni: '',
 
-          // Catálogos que Llave MX NO manda: quedan vacíos (string, no objeto)
-          ocupacion: '',
-          maximo_nivel: '',
+          // Saberes MX: pre-rellenar si vienen datos del pipeline
+          ocupacion: ocupacionObj,
+          maximo_nivel: maximoNivelObj,
+          eres_docente: Boolean(eresDocenteRaw),
 
-          // Campos de docente que Llave MX NO manda
-          eres_docente: false,
           cct: '',
           funcion: '',
           nivel_Educativo: '',
@@ -646,11 +671,11 @@ const RegistrationPage = (props) => {
 
     // 🟧 BLOQUE 3: Ajuste del payload antes del envío
     if (isLlaveMX) {
-      // Para Llave MX: enviar campos vacíos (el backend no los requiere)
-      _payload.ocupacion = '';
-      _payload.maximo_nivel = '';
-      _payload.funcion = '';
-      _payload.nivel_Educativo = '';
+      // Saberes MX puede haber pre-rellenado ocupacion/maximo_nivel — enviar si existen
+      _payload.ocupacion = formFields.ocupacion?.catalogoCode || '';
+      _payload.maximo_nivel = formFields.maximo_nivel?.catalogoCode || '';
+      _payload.funcion = '0';
+      _payload.nivel_Educativo = '0';
       _payload.asignatura = '';
       _payload.cuentanos = '';
     } else {
