@@ -24,6 +24,9 @@ import {
   FORM_SUBMISSION_ERROR,
   TPA_AUTHENTICATION_FAILURE,
 } from './data/constants';
+import {
+  aplicarIdentidadLlaveMX, CURP_GENERICA_EXTRANJERO, getIdentidadLlaveMX, mapearEstado,
+} from './data/llavemxIdentity';
 import getBackendValidations from './data/selectors';
 import {
   isFormValid, prepareRegistrationPayload,
@@ -363,6 +366,25 @@ const RegistrationPage = (props) => {
   // 🔹 Flag para saber si el proveedor actual es Llave MX
   const isLlaveMX = isLlaveMXProvider(currentProvider);
 
+  // Identidad verificada de Llave MX: nombre, apellidos y CURP se muestran de solo
+  // lectura y se envían tal cual (ver data/llavemxIdentity.js).
+  // edx-platform manda en currentProvider el nombre visible del proveedor (configurable
+  // en el admin), no su id; se resuelve contra la lista de proveedores, que sí trae el id.
+  const esProveedorLlaveMX = isLlaveMX || (providers || []).some(
+    p => p.name === currentProvider && isLlaveMXProvider(p.id),
+  );
+  const identidadLlaveMX = useMemo(() => (
+    esProveedorLlaveMX && pipelineUserDetails && Object.keys(pipelineUserDetails).length !== 0
+      ? getIdentidadLlaveMX(pipelineUserDetails)
+      : null
+  ), [esProveedorLlaveMX, pipelineUserDetails]);
+  const nombresBloqueados = Boolean(identidadLlaveMX?.bloquearNombres);
+  const curpBloqueada = Boolean(identidadLlaveMX?.bloquearCurp);
+  const camposBloqueados = [
+    ...(nombresBloqueados ? ['nombres', 'primer_apellido', 'segundo_apellido'] : []),
+    ...(curpBloqueada ? ['curp'] : []),
+  ];
+
   /**
    * Pre-llenar formFields cuando lleguen pipelineUserDetails (Llave MX + Saberes).
    * Re-ejecuta cada vez que pipelineUserDetails cambia — evita race donde
@@ -420,13 +442,9 @@ const RegistrationPage = (props) => {
             };
           }
         } else if (estado) {
-          const estadoEncontrado = estadoList.find(e => e.name === estado);
-          if (estadoEncontrado) {
-            estadoObj = {
-              estadoCode: estadoEncontrado.code,
-              displayValue: estadoEncontrado.name
-            };
-          }
+          // Tolera mayúsculas, acentos y los nombres oficiales largos
+          // ("Veracruz de Ignacio de la Llave", "Michoacán de Ocampo", ...).
+          estadoObj = mapearEstado(estado, estadoList);
         }
 
         // Mapeo ocupacion Saberes → objeto catálogo del formulario
@@ -526,11 +544,11 @@ const RegistrationPage = (props) => {
           username: username || '',
           email: email || '',
 
-          // Campos de nombres que Llave MX entrega
-          nombres: nombres || '',
-          primer_apellido: primer_apellido || '',
-          segundo_apellido: segundo_apellido || '',
-          curp: (isExtranjero ? '' : (curp || '')),
+          // Campos de nombres que Llave MX entrega (verificados: van bloqueados)
+          nombres: nombresBloqueados ? identidadLlaveMX.nombres : (nombres || ''),
+          primer_apellido: nombresBloqueados ? identidadLlaveMX.primer_apellido : (primer_apellido || ''),
+          segundo_apellido: nombresBloqueados ? identidadLlaveMX.segundo_apellido : (segundo_apellido || ''),
+          curp: curpBloqueada ? identidadLlaveMX.curp : (isExtranjero ? '' : (curp || '')),
 
           // Estado mapeado a objeto
           estado: estadoObj,
@@ -615,6 +633,9 @@ const RegistrationPage = (props) => {
 
   const handleOnChange = (event) => {
     const { name } = event.target;
+    if (camposBloqueados.includes(name)) {
+      return;
+    }
     const value = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
     if (registrationError[name]) {
       dispatch(clearRegistrationBackendError(name));
@@ -639,12 +660,18 @@ const RegistrationPage = (props) => {
         setFieldErrors(prevErrors => ({ ...prevErrors, [name]: '' }));
       }
     }
+    // La CURP verificada de Llave MX no depende del estado: cambiarlo no la borra
+    // ni la sustituye por la genérica.
     if (name === 'pais') {
-      formFields.curp = 'XEXX010101HDFXXX04';
+      if (!curpBloqueada) {
+        formFields.curp = CURP_GENERICA_EXTRANJERO;
+      }
       formFields.municipio = 'FUERA DE MÉXICO';
 
     } else if (name === 'estado') {
-      formFields.curp = '';
+      if (!curpBloqueada) {
+        formFields.curp = '';
+      }
       formFields.municipio = '';
     }
     setFormFields(prevState => ({ ...prevState, [name]: value }));
@@ -673,6 +700,9 @@ const RegistrationPage = (props) => {
   const registerUser = () => {
     const totalRegistrationTime = (Date.now() - formStartTime) / 1000;
 
+    // Los datos de identidad bloqueados se envían siempre con los valores de Llave MX.
+    Object.assign(formFields, aplicarIdentidadLlaveMX(formFields, identidadLlaveMX));
+
     formFields.curp = formFields.curp.toUpperCase();
 
     formFields.nombres = formFields.nombres.toUpperCase();
@@ -691,7 +721,9 @@ const RegistrationPage = (props) => {
     }
 
     if (parseInt(formFields.estado.estadoCode) >= 33) {
-      formFields.curp = "XEXX010101HDFXXX04";
+      if (!curpBloqueada) {
+        formFields.curp = CURP_GENERICA_EXTRANJERO;
+      }
       formFields.municipio = "FUERA DE MÉXICO";
     }
 
@@ -874,10 +906,11 @@ const RegistrationPage = (props) => {
 
                     name="nombres"
                     value={formFields.nombres}
+                    readOnly={nombresBloqueados}
                     handleChange={handleOnChange}
                     handleErrorChange={handleErrorChange}
                     errorMessage={errors.nombres}
-                    helpText={[formatMessage(messages['help.text.nombres'])]}
+                    helpText={[formatMessage(messages[nombresBloqueados ? 'help.text.llavemx.bloqueado' : 'help.text.nombres'])]}
                     floatingLabel='Nombre'
                     autoComplete={"off"}
                   />
@@ -885,10 +918,11 @@ const RegistrationPage = (props) => {
                   <TextoField
                     name="primer_apellido"
                     value={formFields.primer_apellido}
+                    readOnly={nombresBloqueados}
                     handleChange={handleOnChange}
                     handleErrorChange={handleErrorChange}
                     errorMessage={errors.primer_apellido}
-                    helpText={[formatMessage(messages['help.text.primer_apellido'])]}
+                    helpText={[formatMessage(messages[nombresBloqueados ? 'help.text.llavemx.bloqueado' : 'help.text.primer_apellido'])]}
                     floatingLabel='Primer apellido'
                     autoComplete={"off"}
                   />
@@ -896,10 +930,11 @@ const RegistrationPage = (props) => {
                   <TextoField
                     name="segundo_apellido"
                     value={formFields.segundo_apellido}
+                    readOnly={nombresBloqueados}
                     handleChange={handleOnChange}
                     handleErrorChange={handleErrorChange}
                     errorMessage={errors.segundo_apellido}
-                    helpText={[formatMessage(messages['help.text.segundo_apellido'])]}
+                    helpText={[formatMessage(messages[nombresBloqueados ? 'help.text.llavemx.bloqueado' : 'help.text.segundo_apellido'])]}
                     floatingLabel='Segundo apellido'
                     autoComplete={"off"}
                   />
@@ -916,14 +951,15 @@ const RegistrationPage = (props) => {
                     target={'estado'}
                     autoComplete={"off"}
                   />
-                  {formFields.estado && parseInt(formFields.estado.estadoCode) <= 32 && (
+                  {(curpBloqueada || (formFields.estado && parseInt(formFields.estado.estadoCode) <= 32)) && (
                     <TextoField
                       name="curp"
                       value={formFields.curp}
+                      readOnly={curpBloqueada}
                       handleChange={handleOnChange}
                       handleErrorChange={handleErrorChange}
                       errorMessage={errors.curp}
-                      helpText={[formatMessage(messages['help.text.curp'])]}
+                      helpText={[formatMessage(messages[curpBloqueada ? 'help.text.llavemx.bloqueado' : 'help.text.curp'])]}
                       floatingLabel='C.U.R.P.'
                       autoComplete={"off"}
                     />
