@@ -426,6 +426,12 @@ const messages = defineMessages({
     defaultMessage: 'CURP inválido',
     description: 'CURP inválido',
   },
+  'help.text.llavemx.bloqueado': {
+    id: 'help.text.llavemx.bloqueado',
+    defaultMessage: 'Este dato proviene de tu Llave MX y no se puede modificar. '
+      + 'Cada persona necesita su propia Llave MX. Si el dato no es correcto, comunícate con soporte.',
+    description: 'Ayuda para los campos de identidad bloqueados porque vienen verificados de Llave MX',
+  },
 
 
 
