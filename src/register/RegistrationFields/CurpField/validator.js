@@ -1,15 +1,15 @@
+import { CURP_REGEX } from '../../data/llavemxIdentity';
 import messages from '../../messages';
 
-// regex more focused towards url matching
-//regex for mexican curp
-export const URL_REGEX =  /[A-Z]{4}[0-9]{6}[HM][A-Z]{5}[a-zA-Z0-9]{2}/gi;
-
+// Se conserva el nombre exportado por compatibilidad. Antes era una regex con bandera
+// `g`, que hacía fallar una CURP válida en llamadas alternas de `.test()`.
+export const URL_REGEX = CURP_REGEX;
 
 const validateCurp = (value, formatMessage) => {
   let fieldError = '';
   if (!value.trim()) {
     fieldError = formatMessage(messages['empty.curp.field.error']);
-  } else if (!URL_REGEX.test(value) ) {
+  } else if (!CURP_REGEX.test(value.trim())) {
     fieldError = formatMessage(messages['curp.validation.message']);
   }
   return fieldError;
