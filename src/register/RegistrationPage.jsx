@@ -708,7 +708,9 @@ const RegistrationPage = (props) => {
     formFields.nombres = formFields.nombres.toUpperCase();
     formFields.primer_apellido = formFields.primer_apellido.toUpperCase();
     formFields.segundo_apellido = formFields.segundo_apellido.toUpperCase();
-    formFields.name = formFields.nombres + ' ' + formFields.primer_apellido + ' ' + formFields.segundo_apellido;
+    // Hay personas con un solo apellido: el segundo puede venir vacío.
+    formFields.name = [formFields.nombres, formFields.primer_apellido, formFields.segundo_apellido]
+      .filter(Boolean).join(' ');
 
     if (formFields.email === '') {
       return handleErrorChange('email', 'Correo es requerido');
@@ -931,6 +933,7 @@ const RegistrationPage = (props) => {
                     name="segundo_apellido"
                     value={formFields.segundo_apellido}
                     readOnly={nombresBloqueados}
+                    opcional
                     handleChange={handleOnChange}
                     handleErrorChange={handleErrorChange}
                     errorMessage={errors.segundo_apellido}
