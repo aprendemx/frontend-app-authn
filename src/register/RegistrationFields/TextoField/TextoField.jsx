@@ -27,11 +27,20 @@ const TextoField = (props) => {
   const {
     handleErrorChange,
     shouldFetchUsernameSuggestions,
-      name
+    name,
+    opcional,
+    readOnly,
   } = props;
 
   const handleOnBlur = (e) => {
+    // Un campo de solo lectura trae datos ya verificados (p. ej. Llave MX): no se valida.
+    if (readOnly) {
+      return;
+    }
     const { value } = e.target;
+    if (opcional && !value.trim()) {
+      return;
+    }
     const fieldError = validateName(value, formatMessage);
     if (fieldError) {
       handleErrorChange(name, fieldError);
@@ -57,11 +66,15 @@ const TextoField = (props) => {
 TextoField.defaultProps = {
   errorMessage: '',
   shouldFetchUsernameSuggestions: false,
+  opcional: false,
+  readOnly: false,
 };
 
 TextoField.propTypes = {
   errorMessage: PropTypes.string,
   shouldFetchUsernameSuggestions: PropTypes.bool,
+  opcional: PropTypes.bool,
+  readOnly: PropTypes.bool,
   value: PropTypes.string.isRequired,
   handleChange: PropTypes.func.isRequired,
   handleErrorChange: PropTypes.func.isRequired,

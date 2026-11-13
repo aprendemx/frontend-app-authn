@@ -183,4 +183,58 @@ describe('RegistrationPage con identidad de Llave MX', () => {
       estado: '30',
     }));
   });
+
+  describe('persona con un solo apellido', () => {
+    const unApellido = { ...llaveMX, name: 'Diana López', segundo_apellido: '' };
+
+    const enviar = (store, container) => {
+      ['tos', 'honor_code'].forEach((n) => {
+        const casilla = campo(container, n);
+        if (casilla && !casilla.checked) {
+          fireEvent.click(casilla);
+        }
+      });
+      fireEvent.click(container.querySelector('button[type="submit"]'));
+      return store.dispatch.mock.calls
+        .map(([accion]) => accion)
+        .find(accion => accion.type === REGISTER_NEW_USER.BASE);
+    };
+
+    it('bloquea el segundo apellido vacío y no marca error al salir del campo', () => {
+      const { container } = montar(crearStore(unApellido));
+      const segundo = campo(container, 'segundo_apellido');
+      expect(segundo.value).toEqual('');
+      expect(segundo.readOnly).toBe(true);
+      fireEvent.focus(segundo);
+      fireEvent.blur(segundo);
+      expect(segundo.getAttribute('aria-invalid')).toEqual('false');
+    });
+
+    it('permite enviar el registro con el segundo apellido vacío', () => {
+      const store = crearStore(unApellido);
+      store.dispatch = jest.fn(store.dispatch);
+      const { container } = montar(store);
+      fireEvent.blur(campo(container, 'segundo_apellido'));
+
+      const envio = enviar(store, container);
+      expect(envio).toBeDefined();
+      expect(envio.payload.registrationInfo).toEqual(expect.objectContaining({
+        nombres: 'DIANA',
+        primer_apellido: 'LÓPEZ',
+        segundo_apellido: '',
+        name: 'DIANA LÓPEZ',
+      }));
+    });
+  });
+
+  it('sin Llave MX, el segundo apellido vacío tampoco marca error', () => {
+    const { container } = montar(crearStore(llaveMX, {
+      currentProvider: 'Otro',
+      providers: [{ id: 'oa2-otro', name: 'Otro' }],
+    }));
+    const segundo = campo(container, 'segundo_apellido');
+    fireEvent.change(segundo, { target: { name: 'segundo_apellido', value: '' } });
+    fireEvent.blur(segundo);
+    expect(segundo.getAttribute('aria-invalid')).toEqual('false');
+  });
 });
